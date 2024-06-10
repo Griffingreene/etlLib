@@ -3,7 +3,7 @@
 
  functions designed to be easily applied in other scripts to access data files, parse content and reformat
 
- Author: Griffin Greene (griffincgreene@gmail.com)
+ Author: Griffin Greene
  """
 
 import io
@@ -27,6 +27,8 @@ def sql2csv(query, conn):                                               # Takes 
         writer.writerow(line)
 
     return writestring.getvalue()
+
+
 
                                                                         # Converts SQL table to JSON string
 def sql2json(query, conn, format='lod',primary_key=None):               # Query as string, sqlite data connection object
@@ -64,24 +66,47 @@ def sql2json(query, conn, format='lod',primary_key=None):               # Query 
 
 
 
+
+
+
                                                                        # Read CSV file and write to SQL table
-def csv2sql(filename, conn, table):                                    # Path to file, sqlite connection, SQL table to write to
+                                                                       # assumes table exists and column order matches
+
+def csv2sql(filename, conn, table, unique_col=None):                   # Path to file, sqlite connection, SQL table to write to, col name tocheck duplicate
     fh = open(filename)
     reader = csv.reader(fh)
-    
+
     cursor = conn.cursor()
-    
-    headers = next(reader)                                             # Get number of columns in CSV
-    q_marks = '?' * len(headers)
-    parameter_tokens = ', '.join(q_marks)                              # Create SQL token sring with tokens to match number of columns
-    query = f"INSERT INTO {table} VALUES({parameter_tokens})"          # Create query to insert row into specified table
-    
-    for row in reader:                                                 # Execute insert query for each row in CSV file
-        cursor.execute(query, row)
+
+    headers = next(reader)                                              # Get name of columns in CSV
+
+    q_marks = '?' * len(headers)                                        # Create '?' string equal to number of columns in CSV
+    parameter_tokens = ', '.join(q_marks)                               # Create SQL token sring with tokens to match number of columns
+    insert = f"INSERT INTO {table} VALUES({parameter_tokens})"          # Query to insert row into specified table
+
+
+    if unique_col:
+        unique_col_idx = headers.index(unique_col)
+
+        cursor.execute(f"SELECT {unique_col} FROM {table}")
+
+        key_col_vals = [item for sublist in cursor.fetchall() for item in sublist]
+
+
+
+        for row in reader:                                              # Execute insert query for each row in CSV file
+            if row[unique_col_idx] not in key_col_vals:                 # that is not in the list of values in the header
+                cursor.execute(insert, row)
+    else:
+        for row in reader:                                               # Execute insert query for each row in CSV file
+            cursor.execute(insert, row)
 
     conn.commit()
     conn.close()
     fh.close()
+
+
+
 
                                                                        # Read JSON file contents and insert into SQL table
 def json2sql(filename, conn, table):                                   # Path JSON file to read, sqlite connection, SQL table to insert
