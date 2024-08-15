@@ -10,6 +10,8 @@ import io
 import csv
 import sqlite3
 import json
+import random
+from faker import Faker
 
 
                                                                         # Accesses SQL table and returns a CSV string of all info
@@ -137,5 +139,84 @@ def json2sql(filename, conn, table):                                   # Path JS
     j_file.close()
 
 
+def random_names(num_names):
+    names = []
+    fake = Faker()
+    for i in range(num_names):
+        names.append(fake.name())
+    return names
 
+
+def random_IDs(name_list):
+    ID_list = []
+    for full_name in name_list:
+        initials = ''
+        for name in full_name.split():
+            initials += name[0]
+
+        for j in range(3):
+            initials += str(random.randint(1, 9))
+
+        ID_list.append(initials)
+
+    return ID_list
+
+
+def generate_usernames(name_list):
+    usernames = []
+    for name in name_list:
+        name = name.lower()
+        username = name.split()[0][0] + name.split()[1][0:5]
+
+        usernames.append(username)
+    return usernames
+
+
+def emails(usernames):
+    emails = []
+    for user in usernames:
+        user += '@nyu.com'
+        emails.append(user)
+
+    return emails
+
+
+def get_sqlite_type(value):
+    if isinstance(value, int):
+        return 'INTEGER'
+    elif isinstance(value, float):
+        return 'REAL'
+    elif isinstance(value, str):
+        return 'TEXT'
+    else:
+        return 'TEXT'
+
+
+def create_table(data_lists_col_names, database_to_connect, table_name):
+    lengths = [len(lst) for lst in data_lists_col_names.values()]
+    assert all(length == lengths[0] for length in lengths)
+
+    column_definitions = []
+    for column_name, values in data_lists_col_names.items():
+        col_type = get_sqlite_type(values[0])
+        column_definitions.append(f"{column_name} {col_type}")
+
+    conn = sqlite3.connect(database_to_connect)
+    cursor = conn.cursor()
+    cursor.execute(f'''
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        {', '.join(column_definitions)}
+    )
+''')
+
+    columns = list(data_lists_col_names.keys())
+    values = list(data_lists_col_names.values())
+    data = list(zip(*values))
+
+    placeholders = ','.join(['?' for _ in columns])
+    query = f'INSERT INTO {table_name} ({", ".join(columns)}) VALUES ({placeholders})'
+
+    cursor.executemany(query, data)
+    conn.commit()
+    conn.close()
 
